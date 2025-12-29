@@ -2,6 +2,15 @@
 
 # Model configuration
 models:
+  llama_openrouter:
+    name: "meta-llama/llama-3.3-70b-instruct:free"
+    type: "openrouter"
+    base_url: "https://openrouter.ai/api/v1"
+    temperature: 0.0
+    max_tokens: 8192
+    # API key should be set via environment variable: OPENROUTER_API_KEY
+    # See .env.example for setup instructions
+  
   llama:
     name: "llama3.1:8b-instruct"
     type: "ollama"
