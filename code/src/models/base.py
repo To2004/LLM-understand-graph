@@ -79,15 +79,23 @@ class BaseLLMClient(ABC):
         prompt: str,
         schema: Dict[str, Any],
         system_message: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> str:
         """
-        Generate structured output matching schema.
+        Generate structured JSON output matching schema.
         
+        Args:
+            prompt: User prompt
+            schema: JSON schema for output validation
+            system_message: Optional system message
+            
+        Returns:
+            JSON string that matches the schema
+            
         TODO [MODELS-003]:
             - Use JSON mode or function calling
             - Validate output against schema
             - Retry if output doesn't match schema
-            - Parse into Python dict
+            - Return as JSON string (caller will parse)
         """
         pass
     

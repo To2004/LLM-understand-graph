@@ -1,13 +1,15 @@
 """
-Agent Chooser: Selects appropriate graph algorithms for given tasks
+Agent Chooser: Classifies tasks and selects appropriate graph algorithms
 
-This module classifies task types and selects the correct classical graph 
-algorithm to execute (connectivity, shortest path, maximum flow, etc.).
+This module analyzes natural language queries to determine the type of graph
+problem and selects the most appropriate algorithm to solve it.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, List, Any, Optional
 from enum import Enum
+import json
 from pydantic import BaseModel
+from agents.prompts import ChooserPrompts
 
 
 class TaskType(Enum):
@@ -28,109 +30,171 @@ class AlgorithmChoice(BaseModel):
     algorithm_name: str
     parameters: Dict[str, Any]
     confidence: float
+    reasoning: Optional[str] = None
 
 
 class AgentChooser:
     """
     Classifies graph tasks and selects appropriate algorithms.
-    
-    TODO: Team Member Assignment - [CHOOSER TEAM]
-    
-    Priority: HIGH
-    Estimated Time: 2-3 weeks
     """
     
-    def __init__(self, llm_client, algorithm_registry: Dict = None):
+    def __init__(self, llm_client, algorithm_registry: Optional[Dict] = None):
         """
         Initialize the algorithm chooser.
         
         Args:
             llm_client: The LLM client for task classification
-            algorithm_registry: Mapping of tasks to algorithms
-            
-        TODO [CHOOSER-001]:
-            - Load algorithm registry from config
-            - Initialize task classification prompts
-            - Set up few-shot examples for classification
-            - Configure confidence thresholds
+            algorithm_registry: Optional mapping of tasks to algorithms (uses default if None)
         """
         self.llm_client = llm_client
-        self.algorithm_registry = algorithm_registry or {}
-        # TODO: Implement initialization
-        pass
+        self.algorithm_registry = algorithm_registry
     
-    def choose_algorithm(self, task_query: str) -> AlgorithmChoice:
+    def choose_algorithm(
+        self, 
+        task_query: str,
+        graph_structure: Optional[Any] = None
+    ) -> AlgorithmChoice:
         """
         Select the appropriate algorithm for a task query.
         
         Args:
             task_query: Natural language description of the task
+            graph_structure: Optional GraphStructure from parser for better selection
             
         Returns:
             AlgorithmChoice with selected algorithm and parameters
-            
-        TODO [CHOOSER-002]:
-            - Classify task type using LLM
-            - Extract algorithm parameters from query
-            - Map task to specific algorithm implementation
-            - Calculate confidence score
-            - Handle ambiguous queries
-        
-        Example:
-            >>> query = "Find the shortest path from A to D"
-            >>> choice = chooser.choose_algorithm(query)
-            >>> choice.algorithm_name
-            'dijkstra'
         """
-        # TODO: Implement algorithm selection
-        raise NotImplementedError("AgentChooser.choose_algorithm() not yet implemented")
+        # Classify task type and extract base parameters
+        task_type, base_parameters, confidence = self._classify_task_type(task_query)
+        
+        # Select specific algorithm based on task and graph properties
+        algorithm_name, reasoning = self._select_algorithm(
+            task_type,
+            base_parameters,
+            graph_structure
+        )
+        
+        return AlgorithmChoice(
+            task_type=task_type,
+            algorithm_name=algorithm_name,
+            parameters=base_parameters,
+            confidence=confidence,
+            reasoning=reasoning
+        )
     
-    def _classify_task_type(self, query: str) -> TaskType:
+    def _classify_task_type(self, query: str) -> tuple:
         """
-        Classify the task type from query.
+        Classify the task type from query using LLM.
         
-        TODO [CHOOSER-003]:
-            - Use LLM with classification prompt
-            - Implement keyword matching for common patterns
-            - Handle multi-task queries
-            - Return confidence scores
+        Returns:
+            Tuple of (TaskType, parameters dict, confidence score)
         """
-        # TODO: Implement task classification
-        raise NotImplementedError()
+        prompt = ChooserPrompts.format_task_classification_prompt(query)
+        
+        response = self.llm_client.generate_structured(
+            prompt=prompt,
+            schema=ChooserPrompts.SCHEMA_TASK_CLASSIFICATION,
+            system_message=ChooserPrompts.SYSTEM_MESSAGE
+        )
+        
+        parsed = self._parse_json_response(response)
+        
+        # Convert string to TaskType enum
+        task_type = TaskType(parsed["task_type"])
+        
+        return (
+            task_type,
+            parsed.get("parameters", {}),
+            parsed.get("confidence", 0.0)
+        )
     
     def _extract_parameters(
         self, 
         query: str, 
-        task_type: TaskType
+        nodes: List[str]
     ) -> Dict[str, Any]:
         """
         Extract algorithm-specific parameters from query.
         
-        TODO [CHOOSER-004]:
-            - Extract source/target nodes for path queries
-            - Extract capacity constraints for flow problems
-            - Parse optional parameters (weighted, directed, etc.)
-            - Validate parameter consistency
+        Args:
+            query: Natural language query
+            nodes: List of node identifiers in the graph
+            
+        Returns:
+            Dictionary of extracted parameters
         """
-        # TODO: Implement parameter extraction
-        raise NotImplementedError()
+        prompt = ChooserPrompts.format_parameter_extraction_prompt(query, nodes)
+        
+        response = self.llm_client.generate_structured(
+            prompt=prompt,
+            schema=ChooserPrompts.SCHEMA_PARAMETER_EXTRACTION,
+            system_message=ChooserPrompts.SYSTEM_MESSAGE
+        )
+        
+        return self._parse_json_response(response)
     
     def _select_algorithm(
         self, 
         task_type: TaskType, 
-        graph_properties: Dict[str, Any]
-    ) -> str:
+        parameters: Dict[str, Any],
+        graph_structure: Optional[Any] = None
+    ) -> tuple:
         """
         Select specific algorithm based on task and graph properties.
         
-        TODO [CHOOSER-005]:
-            - Choose BFS vs DFS for connectivity
-            - Choose Dijkstra vs Bellman-Ford for shortest path
-            - Consider graph size and density
-            - Handle special cases (negative weights, etc.)
+        Args:
+            task_type: Classified task type
+            parameters: Extracted parameters
+            graph_structure: Optional GraphStructure from parser
+            
+        Returns:
+            Tuple of (algorithm_name, reasoning)
         """
-        # TODO: Implement algorithm selection logic
-        raise NotImplementedError()
+        directed = graph_structure.directed
+        weighted = graph_structure.weighted
+        num_nodes = len(graph_structure.nodes)
+        num_edges = len(graph_structure.edges)
+        
+        # Use LLM to select the best algorithm
+        prompt = ChooserPrompts.format_algorithm_selection_prompt(
+            task_type=task_type.value,
+            parameters=parameters,
+            directed=directed,
+            weighted=weighted,
+            num_nodes=num_nodes,
+            num_edges=num_edges
+        )
+        
+        response = self.llm_client.generate_structured(
+            prompt=prompt,
+            schema=ChooserPrompts.SCHEMA_ALGORITHM_SELECTION,
+            system_message=ChooserPrompts.SYSTEM_MESSAGE
+        )
+        
+        parsed = self._parse_json_response(response)
+        
+        return (
+            parsed["algorithm_name"],
+            parsed.get("reasoning", "")
+        )
+    
+    def _parse_json_response(self, response_text: str) -> Dict[str, Any]:
+        """
+        Parse JSON string from LLM response.
+        
+        Args:
+            response_text: Raw text response from LLM
+            
+        Returns:
+            Parsed dictionary
+            
+        Raises:
+            ValueError: If JSON parsing fails
+        """
+        try:
+            return json.loads(response_text)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse LLM response as JSON: {e}")
     
     def validate_choice(
         self, 
@@ -140,11 +204,47 @@ class AgentChooser:
         """
         Validate that chosen algorithm is applicable to the graph.
         
-        TODO [CHOOSER-006]:
-            - Check if graph satisfies algorithm preconditions
-            - Verify required parameters are present
-            - Warn about potential performance issues
-            - Suggest alternatives if needed
+        Args:
+            choice: Algorithm choice to validate
+            graph_structure: The GraphStructure from parser
+            
+        Returns:
+            True if valid, False otherwise
         """
-        # TODO: Implement validation
-        raise NotImplementedError()
+        # Check if task type has registered algorithms
+        if choice.task_type not in self.algorithm_registry:
+            return False
+        
+        # Check if chosen algorithm is in registry for this task
+        available = self.algorithm_registry[choice.task_type]
+        if choice.algorithm_name not in available:
+            return False
+        
+        # Validate required parameters are present based on task type
+        if choice.task_type in [TaskType.CONNECTIVITY, TaskType.SHORTEST_PATH]:
+            # These require source and target nodes
+            if "source" not in choice.parameters or "target" not in choice.parameters:
+                return False
+            
+            # Verify nodes exist in graph
+            if graph_structure:
+                nodes = set(graph_structure.nodes)
+                if choice.parameters["source"] not in nodes:
+                    return False
+                if choice.parameters["target"] not in nodes:
+                    return False
+        
+        if choice.task_type == TaskType.MAXIMUM_FLOW:
+            # Flow requires source and sink
+            if "source" not in choice.parameters or "sink" not in choice.parameters:
+                return False
+            
+            # Verify nodes exist in graph
+            if graph_structure:
+                nodes = set(graph_structure.nodes)
+                if choice.parameters["source"] not in nodes:
+                    return False
+                if choice.parameters["sink"] not in nodes:
+                    return False
+        
+        return True
