@@ -29,23 +29,23 @@ class BaseLLMClient(ABC):
     def __init__(self, model_name: str, temperature: float = 0.0, **kwargs):
         """
         Initialize LLM client.
-        
+
         Args:
             model_name: Name/ID of the model
             temperature: Sampling temperature (0.0 for deterministic)
             **kwargs: Additional model-specific parameters
-            
-        TODO [MODELS-001]:
-            - Store model configuration
-            - Initialize client connection
-            - Set default parameters
-            - Configure retry logic
         """
         self.model_name = model_name
         self.temperature = temperature
         self.config = kwargs
-        # TODO: Implement initialization
-        pass
+
+        # Configure retry logic
+        self.max_retries = kwargs.get('max_retries', 3)
+        self.retry_delay = kwargs.get('retry_delay', 1.0)
+
+        # Token tracking
+        self.total_tokens_used = 0
+        self.total_requests = 0
     
     @abstractmethod
     def generate(
@@ -100,18 +100,36 @@ class BaseLLMClient(ABC):
         pass
     
     def batch_generate(
-        self, 
+        self,
         prompts: List[str],
         system_message: Optional[str] = None
     ) -> List[LLMResponse]:
         """
-        Generate for multiple prompts (can be parallel).
-        
-        TODO [MODELS-004]:
-            - Implement batch processing
-            - Use async calls if supported
-            - Handle rate limits
-            - Return results in order
+        Generate for multiple prompts (sequential by default, can be overridden for parallel).
+
+        Args:
+            prompts: List of prompts to generate from
+            system_message: Optional system message for all prompts
+
+        Returns:
+            List of LLMResponse objects in same order as prompts
         """
-        # TODO: Implement batch generation
-        raise NotImplementedError()
+        # Default implementation: sequential processing
+        # Subclasses can override for parallel/async processing
+        results = []
+        for prompt in prompts:
+            response = self.generate(prompt, system_message)
+            results.append(response)
+        return results
+
+    def get_usage_stats(self) -> Dict[str, int]:
+        """
+        Get token usage statistics.
+
+        Returns:
+            Dictionary with total_tokens and total_requests
+        """
+        return {
+            "total_tokens": self.total_tokens_used,
+            "total_requests": self.total_requests
+        }

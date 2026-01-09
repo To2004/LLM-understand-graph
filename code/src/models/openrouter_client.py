@@ -89,7 +89,11 @@ class OpenRouterClient(BaseLLMClient):
             content = response.choices[0].message.content
             finish_reason = response.choices[0].finish_reason
             tokens_used = response.usage.total_tokens
-            
+
+            # Track usage
+            self.total_tokens_used += tokens_used
+            self.total_requests += 1
+
             return LLMResponse(
                 content=content,
                 model=self.model_name,
