@@ -3,15 +3,21 @@ Open Router API client implementation
 """
 
 import os
+import json
+import time
+import requests
 from typing import Optional, Dict, Any
-from openai import OpenAI
+from dotenv import load_dotenv
 from .base import BaseLLMClient, LLMResponse
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class OpenRouterClient(BaseLLMClient):
     """
     Open Router API client for accessing various open-source models.
-    Uses OpenAI-compatible API interface.
+    Uses direct HTTP requests to OpenRouter API.
     """
     
     def __init__(
@@ -40,11 +46,7 @@ class OpenRouterClient(BaseLLMClient):
                 "Set OPENROUTER_API_KEY environment variable or pass api_key parameter."
             )
         
-        # Initialize OpenAI client with Open Router endpoint
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=base_url
-        )
+        self.base_url = base_url.rstrip('/')
         
         # Set default parameters
         self.max_tokens = kwargs.get('max_tokens', 8192)
@@ -76,37 +78,88 @@ class OpenRouterClient(BaseLLMClient):
         temperature = kwargs.get('temperature', self.temperature)
         max_tokens = kwargs.get('max_tokens', self.max_tokens)
         
-        try:
-            # Call Open Router API
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            
-            # Extract response
-            content = response.choices[0].message.content
-            finish_reason = response.choices[0].finish_reason
-            tokens_used = response.usage.total_tokens
-
-            # Track usage
-            self.total_tokens_used += tokens_used
-            self.total_requests += 1
-
-            return LLMResponse(
-                content=content,
-                model=self.model_name,
-                tokens_used=tokens_used,
-                finish_reason=finish_reason,
-                metadata={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                }
-            )
-            
-        except Exception as e:
-            raise RuntimeError(f"Open Router API call failed: {str(e)}")
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/GraphReasoning/LLM-Graph", # Optional
+            "X-Title": "LLM Graph Reasoning Framework", # Optional
+        }
+        
+        payload = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        
+        max_retries = 5
+        base_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                # Call Open Router API
+                response = requests.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=60
+                )
+                
+                # Check for rate limits (429)
+                if response.status_code == 429:
+                    error_data = response.json()
+                    error_msg = error_data.get('error', {}).get('message', 'Rate limit exceeded')
+                    
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        print(f"Rate limit hit ({error_msg}). Retrying in {delay}s...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        raise RuntimeError(f"Open Router rate limit exceeded after {max_retries} retries: {error_msg}")
+                
+                # Check for other errors
+                response.raise_for_status()
+                
+                # Extract response
+                result = response.json()
+                
+                content = result['choices'][0]['message']['content']
+                finish_reason = result['choices'][0]['finish_reason']
+                
+                # Usage stats might be missing in some responses
+                usage = result.get('usage', {})
+                tokens_used = usage.get('total_tokens', 0)
+                prompt_tokens = usage.get('prompt_tokens', 0)
+                completion_tokens = usage.get('completion_tokens', 0)
+    
+                # Track usage
+                self.total_tokens_used += tokens_used
+                self.total_requests += 1
+    
+                return LLMResponse(
+                    content=content,
+                    model=self.model_name,
+                    tokens_used=tokens_used,
+                    finish_reason=finish_reason,
+                    metadata={
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                    }
+                )
+                
+            except requests.exceptions.RequestException as e:
+                # Handle connection errors differently? For now, just fail or basic retry
+                # If it's not a rate limit (handled above)
+                if attempt < max_retries - 1 and isinstance(e, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+                     delay = base_delay * (2 ** attempt)
+                     print(f"Connection error: {e}. Retrying in {delay}s...")
+                     time.sleep(delay)
+                     continue
+                
+                raise RuntimeError(f"Open Router API call failed: {str(e)}")
+            except Exception as e:
+                raise RuntimeError(f"Open Router API call failed: {str(e)}")
     
     def generate_structured(
         self, 
@@ -125,8 +178,6 @@ class OpenRouterClient(BaseLLMClient):
         Returns:
             Parsed JSON output matching schema
         """
-        import json
-        
         # Add schema instruction to prompt
         schema_prompt = f"{prompt}\n\nRespond with valid JSON matching this schema:\n{json.dumps(schema, indent=2)}"
         

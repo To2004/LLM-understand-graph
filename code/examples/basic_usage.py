@@ -6,44 +6,48 @@ Example usage of the LLM Graph Reasoning Framework
 def example_basic_usage():
     """
     Basic example of using the framework.
-    
-    TODO [EXAMPLES-001]: Update when modules are implemented
     """
     print("Basic Usage Example")
     print("=" * 60)
     
-    # TODO: Uncomment when implemented
-    """
-    from src.agents import AgentParser, AgentChooser, AgentVerifier
-    from src.orchestrator import AgentOrchestrator
-    from src.algorithms import AlgorithmExecutor
-    from src.models import OllamaClient
-    
-    # Initialize LLM client
-    llm_client = OllamaClient(model_name="llama3.1:8b-instruct")
-    
-    # Initialize agents
-    parser = AgentParser(llm_client)
-    chooser = AgentChooser(llm_client)
-    verifier = AgentVerifier(llm_client)
-    executor = AlgorithmExecutor()
-    
-    # Initialize orchestrator
-    orchestrator = AgentOrchestrator(parser, chooser, verifier, executor)
-    
-    # Run a query
-    query = "Graph: Nodes A, B, C, D with edges A--B, B--C, C--D. Task: Is A connected to D?"
-    
-    result = orchestrator.execute(query)
-    
-    print(f"Query: {query}")
-    print(f"Solution: {result.solution}")
-    print(f"Success: {result.success}")
-    print(f"Iterations: {result.iterations}")
-    """
-    
-    print("\n[TODO] Framework not yet implemented!")
-    print("See DEVELOPMENT.md for implementation guide.")
+    try:
+        from src.pipeline import GraphReasoningPipeline
+        from src.models import OpenRouterClient
+        
+        # Initialize LLM client with Llama 3.3 70B from OpenRouter
+        print("\nInitializing OpenRouter client with Llama 3.3 70B...")
+        llm_client = OpenRouterClient(model_name="meta-llama/llama-3.3-70b-instruct:free")
+        
+        # Initialize pipeline
+        print("Initializing pipeline...")
+        pipeline = GraphReasoningPipeline(llm_client, verbose=True)
+        
+        # Run a query
+        query = "Graph: Nodes A, B, C, D with edges A--B, B--C, C--D. Task: Is A connected to D?"
+        
+        print(f"\nQuery: {query}\n")
+        result = pipeline.run(query)
+        
+        print("\n" + "=" * 60)
+        print("RESULTS")
+        print("=" * 60)
+        print(f"Response: {result.natural_language_response}")
+        print(f"Success: {result.success}")
+        if result.algorithm_used:
+            print(f"Algorithm Used: {result.algorithm_used}")
+        if result.metadata:
+            print(f"Metadata: {result.metadata}")
+        
+    except ImportError as e:
+        print(f"\n[ERROR] Import failed: {e}")
+        print("Make sure you're running from the code directory:")
+        print("  cd code")
+        print("  python examples/basic_usage.py")
+    except Exception as e:
+        print(f"\n[ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+
 
 
 def example_benchmark_evaluation():

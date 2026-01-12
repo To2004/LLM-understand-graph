@@ -9,7 +9,7 @@ from typing import Dict, List, Any, Optional
 from enum import Enum
 import json
 from pydantic import BaseModel
-from agents.prompts import ChooserPrompts
+from .prompts import ChooserPrompts
 
 
 class TaskType(Enum):
@@ -89,18 +89,19 @@ class AgentChooser:
         Returns:
             Tuple of (TaskType, parameters dict, confidence score)
         """
+        print(f"[Chooser] Classifying task type for query: {query[:100]}...")
         prompt = ChooserPrompts.format_task_classification_prompt(query)
         
-        response = self.llm_client.generate_structured(
+        # generate_structured returns a dict, not a string
+        parsed = self.llm_client.generate_structured(
             prompt=prompt,
             schema=ChooserPrompts.SCHEMA_TASK_CLASSIFICATION,
             system_message=ChooserPrompts.SYSTEM_MESSAGE
         )
         
-        parsed = self._parse_json_response(response)
-        
         # Convert string to TaskType enum
         task_type = TaskType(parsed["task_type"])
+        print(f"[Chooser] Classified as: {task_type.value} (confidence: {parsed.get('confidence', 0.0)})")
         
         return (
             task_type,
@@ -125,13 +126,14 @@ class AgentChooser:
         """
         prompt = ChooserPrompts.format_parameter_extraction_prompt(query, nodes)
         
-        response = self.llm_client.generate_structured(
+        # generate_structured returns a dict, not a string
+        parsed = self.llm_client.generate_structured(
             prompt=prompt,
             schema=ChooserPrompts.SCHEMA_PARAMETER_EXTRACTION,
             system_message=ChooserPrompts.SYSTEM_MESSAGE
         )
         
-        return self._parse_json_response(response)
+        return parsed
     
     def _select_algorithm(
         self, 
@@ -150,10 +152,18 @@ class AgentChooser:
         Returns:
             Tuple of (algorithm_name, reasoning)
         """
-        directed = graph_structure.directed
-        weighted = graph_structure.weighted
-        num_nodes = len(graph_structure.nodes)
-        num_edges = len(graph_structure.edges)
+        # Handle case where graph_structure is not available (parallel execution)
+        if graph_structure is None:
+            directed = True  # Default assumption
+            weighted = False  # Default assumption
+            num_nodes = 0  # Unknown
+            num_edges = 0  # Unknown
+            print("[Chooser] No graph structure available, using defaults")
+        else:
+            directed = graph_structure.directed
+            weighted = graph_structure.weighted
+            num_nodes = len(graph_structure.nodes)
+            num_edges = len(graph_structure.edges)
         
         # Use LLM to select the best algorithm
         prompt = ChooserPrompts.format_algorithm_selection_prompt(
@@ -165,13 +175,15 @@ class AgentChooser:
             num_edges=num_edges
         )
         
-        response = self.llm_client.generate_structured(
+        # generate_structured returns a dict, not a string
+        parsed = self.llm_client.generate_structured(
             prompt=prompt,
             schema=ChooserPrompts.SCHEMA_ALGORITHM_SELECTION,
             system_message=ChooserPrompts.SYSTEM_MESSAGE
         )
         
-        parsed = self._parse_json_response(response)
+        print(f"[Chooser] Selected algorithm: {parsed['algorithm_name']}")
+        print(f"[Chooser] Reasoning: {parsed.get('reasoning', '')}")
         
         return (
             parsed["algorithm_name"],

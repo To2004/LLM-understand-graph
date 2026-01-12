@@ -10,7 +10,8 @@ import sys
 # from src.agents import AgentParser, AgentChooser, AgentVerifier
 # from src.orchestrator import AgentOrchestrator
 # from src.algorithms import AlgorithmExecutor
-# from src.models import OpenAIClient, OllamaClient
+# from src.models import OpenRouterClient, OllamaClient
+# from src.models import OpenAIClient
 # from src.benchmarks import NLGraphBenchmark, BenchmarkEvaluator
 # from src.utils import setup_logging, load_config
 
@@ -109,8 +110,8 @@ def main():
     setup_logging(config['logging']['level'], config['logging']['file'])
     
     # Initialize model
-    if args.model == "gpt4o":
-        llm_client = OpenAIClient(**config['models']['gpt4o'])
+    # elif config['model_provider'] == 'openai':
+    #     llm_client = OpenAIClient(**config['models']['gpt4o'])
     else:
         llm_client = OllamaClient(**config['models'][args.model])
     

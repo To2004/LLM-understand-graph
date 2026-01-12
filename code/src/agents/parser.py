@@ -8,7 +8,7 @@ representations (nodes, edges, directions, weights) following GraphNL templates.
 from typing import Dict, List, Any, Optional
 import json
 from pydantic import BaseModel
-from agents.prompts import ParsingPrompts
+from .prompts import ParsingPrompts
 
 class GraphStructure(BaseModel):
     """Structured representation of a graph extracted from natural language"""
@@ -77,17 +77,17 @@ class AgentParser:
         """
         Extract node identifiers from text using LLM.
         """
+        print(f"[Parser] Extracting nodes from: {text[:100]}...")
         prompt = ParsingPrompts.format_node_extraction_prompt(text)
         
-        response = self.llm_client.generate_structured(
+        # generate_structured returns a dict, not a string
+        parsed = self.llm_client.generate_structured(
             prompt=prompt,
             schema=ParsingPrompts.SCHEMA_NODE_EXTRACTION,
             system_message=ParsingPrompts.SYSTEM_MESSAGE
         )
         
-        # Parse LLM response text to dict
-        parsed = self._parse_json_response(response)
-        
+        print(f"[Parser] Extracted nodes: {parsed.get('nodes', [])}")
         return parsed["nodes"]
     
     def _extract_edges(self, text: str, nodes: List[str]) -> Dict[str, Any]:
@@ -97,16 +97,18 @@ class AgentParser:
         Returns:
             Dictionary with edges (as tuples), directed flag, weighted flag, and optional weights
         """
+        print(f"[Parser] Extracting edges for nodes: {nodes}")
         prompt = ParsingPrompts.format_edge_extraction_prompt(text, nodes)
         
-        response = self.llm_client.generate_structured(
+        # generate_structured returns a dict, not a string
+        parsed = self.llm_client.generate_structured(
             prompt=prompt,
             schema=ParsingPrompts.SCHEMA_EDGE_EXTRACTION,
             system_message=ParsingPrompts.SYSTEM_MESSAGE
         )
         
-        # Parse and convert edges format
-        parsed = self._parse_json_response(response)
+        print(f"[Parser] Extracted edges data: {parsed}")
+        # Convert edges format
         return self._convert_edges_format(parsed)
     
     def _parse_json_response(self, response_text: str) -> Dict[str, Any]:

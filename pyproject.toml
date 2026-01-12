@@ -27,11 +27,10 @@ dependencies = [
     "pandas>=2.0.0",
     
     # LLM Integration
-    "openai>=1.0.0",
-    "anthropic>=0.8.0",
     
     # Local LLM serving
-    "ollama>=0.1.0",
+    # ollama dependency removed per user request
+
     
     # Data processing
     "pydantic>=2.0.0",
@@ -76,8 +75,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["code/src"]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.21.0",
