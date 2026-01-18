@@ -10,7 +10,7 @@ from .pipeline import GraphReasoningPipeline, PipelineResult, quick_query
 # Core components
 from .agents import AgentParser, AgentChooser, AgentSynthesizer, AgentVerifier
 from .algorithms import AlgorithmExecutor
-from .orchestrator import AgentOrchestrator, PromptValidator, PromptDecomposer
+from .agents import AgentOrchestrator, PromptValidator, PromptDecomposer
 
 __all__ = [
     # Main pipeline

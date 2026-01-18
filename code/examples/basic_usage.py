@@ -62,7 +62,7 @@ def example_benchmark_evaluation():
     # TODO: Uncomment when implemented
     """
     from src.benchmarks import NLGraphBenchmark, BenchmarkEvaluator
-    from src.orchestrator import AgentOrchestrator
+    from src.agents import AgentOrchestrator
     
     # Load benchmark
     benchmark = NLGraphBenchmark("data/nlgraph")

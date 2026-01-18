@@ -13,12 +13,12 @@ from pydantic import BaseModel
 
 from .agents import AgentParser, AgentChooser, AgentSynthesizer, AgentVerifier
 from .algorithms import AlgorithmExecutor
-from .orchestrator import AgentOrchestrator, PromptValidator, PromptDecomposer
+from .agents import AgentOrchestrator, PromptValidator, PromptDecomposer
 from .models.base import BaseLLMClient
 
 
 # Re-export PipelineResult from orchestrator
-from .orchestrator.orchestrator import PipelineResult
+from .agents.orchestrator import PipelineResult
 
 
 class GraphReasoningPipeline:
