@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from .agents import AgentParser, AgentChooser, AgentSynthesizer, AgentVerifier
 from .algorithms import AlgorithmExecutor
 from .agents import AgentOrchestrator, PromptValidator, PromptDecomposer
-from .models.base import BaseLLMClient
+from .llms.base import BaseLLMClient
 
 
 # Re-export PipelineResult from orchestrator
@@ -59,7 +59,7 @@ class GraphReasoningPipeline:
         if llm_client is None:
             if self.verbose:
                 print("No LLM client provided, using OpenRouter with Llama 3.3 70B...")
-            from .models import OpenRouterClient
+            from .llms import OpenRouterClient
             llm_client = OpenRouterClient(model_name="meta-llama/llama-3.3-70b-instruct:free")
         
         self.llm_client = llm_client
@@ -70,7 +70,7 @@ class GraphReasoningPipeline:
         
         # Create per-agent clients if different models specified
         if agent_models:
-            from .models import OpenRouterClient
+            from .llms import OpenRouterClient
             parser_client = OpenRouterClient(model_name=agent_models.get("parser", "meta-llama/llama-3.3-70b-instruct:free"))
             chooser_client = OpenRouterClient(model_name=agent_models.get("chooser", "meta-llama/llama-3.3-70b-instruct:free"))
             synthesizer_client = OpenRouterClient(model_name=agent_models.get("synthesizer", "meta-llama/llama-3.3-70b-instruct:free"))
@@ -192,7 +192,7 @@ def quick_query(query: str, model_name: str = "meta-llama/llama-3.3-70b-instruct
     """
     # Import appropriate client
     if provider == "openrouter":
-        from .models import OpenRouterClient
+        from .llms import OpenRouterClient
         client = OpenRouterClient(model_name=model_name)
     else:
         raise ValueError(f"Unknown provider: {provider}")

@@ -12,7 +12,7 @@ def example_basic_usage():
     
     try:
         from src.pipeline import GraphReasoningPipeline
-        from src.models import OpenRouterClient
+        from src.llms import OpenRouterClient
         
         # Initialize LLM client with Llama 3.3 70B from OpenRouter
         print("\nInitializing OpenRouter client with Llama 3.3 70B...")

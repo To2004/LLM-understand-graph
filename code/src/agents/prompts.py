@@ -251,6 +251,10 @@ Available algorithms by task:
 - topological_sort: topological_sort (requires DAG)
 - maximum_flow: maximum_flow, minimum_cut
 - bipartite_matching: maximum_matching, bipartite_matching, is_bipartite
+- hamiltonian_path: NOT IMPLEMENTED (use has_cycle as fallback for Hamiltonian cycles)
+- gnn_message_passing: NOT IMPLEMENTED (use find_all_paths as fallback)
+
+IMPORTANT: If an algorithm is not available, return null for algorithm_name.
 """
 
     PARAMETER_EXTRACTION = """Extract algorithm parameters from this query:

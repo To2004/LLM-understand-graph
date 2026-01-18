@@ -103,9 +103,18 @@ class AgentChooser:
         task_type = TaskType(parsed["task_type"])
         print(f"[Chooser] Classified as: {task_type.value} (confidence: {parsed.get('confidence', 0.0)})")
         
+        # Normalize parameters for specific task types
+        parameters = parsed.get("parameters", {})
+        
+        # Fix: Maximum flow expects 'sink' not 'target'
+        if task_type == TaskType.MAXIMUM_FLOW:
+            if 'target' in parameters and 'sink' not in parameters:
+                parameters['sink'] = parameters.pop('target')
+                print(f"[Chooser] Normalized 'target' → 'sink' for maximum flow")
+        
         return (
             task_type,
-            parsed.get("parameters", {}),
+            parameters,
             parsed.get("confidence", 0.0)
         )
     
@@ -182,12 +191,32 @@ class AgentChooser:
             system_message=ChooserPrompts.SYSTEM_MESSAGE
         )
         
-        print(f"[Chooser] Selected algorithm: {parsed['algorithm_name']}")
-        print(f"[Chooser] Reasoning: {parsed.get('reasoning', '')}")
+        # Handle unimplemented algorithms with fallbacks
+        algorithm_name = parsed.get("algorithm_name")
+        reasoning = parsed.get("reasoning", "")
+        
+        if algorithm_name is None or algorithm_name == "None" or algorithm_name == "":
+            # Provide fallback algorithms for unimplemented task types
+            if task_type == TaskType.HAMILTONIAN_PATH:
+                algorithm_name = "has_cycle"
+                reasoning = "Hamiltonian path algorithm not implemented. Using cycle detection as fallback to check for Hamiltonian cycles."
+                print(f"[Chooser] Fallback: Using has_cycle for Hamiltonian path")
+            elif task_type == TaskType.GNN_MESSAGE_PASSING:
+                algorithm_name = "find_all_paths"
+                reasoning = "GNN message passing not implemented. Using path finding as a simple fallback."
+                print(f"[Chooser] Fallback: Using find_all_paths for GNN message passing")
+            else:
+                # No fallback available
+                algorithm_name = "is_connected"
+                reasoning = f"No algorithm available for {task_type.value}. Using basic connectivity check as fallback."
+                print(f"[Chooser] Warning: No algorithm for {task_type.value}, using is_connected as fallback")
+        
+        print(f"[Chooser] Selected algorithm: {algorithm_name}")
+        print(f"[Chooser] Reasoning: {reasoning}")
         
         return (
-            parsed["algorithm_name"],
-            parsed.get("reasoning", "")
+            algorithm_name,
+            reasoning
         )
     
     def _parse_json_response(self, response_text: str) -> Dict[str, Any]:

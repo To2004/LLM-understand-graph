@@ -13,7 +13,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.pipeline import GraphReasoningPipeline
-from src.models import OpenRouterClient
+from src.llms import OpenRouterClient
 
 
 def print_banner():

@@ -4,7 +4,6 @@ Agent Orchestrator: Main coordinator for the 4-phase pipeline
 
 from typing import Optional, Any, Dict, Tuple
 from pydantic import BaseModel
-from concurrent.futures import ThreadPoolExecutor
 import traceback
 
 from .validator import PromptValidator, ValidationResult
@@ -27,7 +26,7 @@ class AgentOrchestrator:
     Main orchestrator that coordinates the entire 4-phase pipeline.
     
     Phase 1: Validation & Decomposition
-    Phase 2: Parallel Processing (Stream A: Parser, Stream B: Router)
+    Phase 2: Sequential Processing (Parser → Chooser)
     Phase 3: Execution
     Phase 4: Synthesis
     """
@@ -99,8 +98,8 @@ class AgentOrchestrator:
             print(f"[Orchestrator] Graph context: {graph_ctx[:80]}...")
             print(f"[Orchestrator] Task context: {task_ctx[:80]}...")
             
-            # Phase 2: Parallel Processing
-            print("\n[Orchestrator] ========== PHASE 2: PARALLEL PROCESSING ==========")
+            # Phase 2: Sequential Processing (Parser → Chooser)
+            print("\n[Orchestrator] ========== PHASE 2: SEQUENTIAL PROCESSING ==========")
             graph_structure, algorithm_choice = self._execute_parallel_streams(
                 graph_ctx, task_ctx
             )
@@ -125,6 +124,19 @@ class AgentOrchestrator:
             
             nx_graph = GraphUtils.dict_to_networkx(graph_dict)
             print(f"[Orchestrator] NetworkX graph created: {nx_graph.number_of_nodes()} nodes, {nx_graph.number_of_edges()} edges")
+            
+            # Enrich parameters for specific algorithms
+            if algorithm_choice.algorithm_name == 'bipartite_matching':
+                if 'top_nodes' not in algorithm_choice.parameters:
+                    # Infer top_nodes from bipartite coloring
+                    import networkx as nx
+                    if nx.is_bipartite(nx_graph):
+                        coloring = nx.bipartite.color(nx_graph)
+                        top_nodes = {node for node, color in coloring.items() if color == 0}
+                        algorithm_choice.parameters['top_nodes'] = top_nodes
+                        print(f"[Orchestrator] Inferred top_nodes for bipartite matching: {top_nodes}")
+                    else:
+                        print(f"[Orchestrator] Warning: Graph is not bipartite, bipartite_matching may fail")
             
             # Phase 3: Execution
             print("\n[Orchestrator] ========== PHASE 3: ALGORITHM EXECUTION ==========")
@@ -200,9 +212,9 @@ class AgentOrchestrator:
         task_ctx: str
     ) -> Tuple[Any, Any]:
         """
-        Execute Stream A (Parser) and Stream B (Router) in parallel.
+        Execute Stream A (Parser) and Stream B (Router) sequentially.
         
-        Uses ThreadPoolExecutor for parallel execution.
+        Parser runs first, then Chooser waits for Parser to complete.
         
         Args:
             graph_ctx: Graph context from decomposition
@@ -211,14 +223,13 @@ class AgentOrchestrator:
         Returns:
             Tuple of (graph_structure, algorithm_choice)
         """
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            # Submit both streams
-            future_a = executor.submit(self._run_stream_a, graph_ctx)
-            future_b = executor.submit(self._run_stream_b, task_ctx)
-            
-            # Wait for both to complete
-            graph_structure = future_a.result()
-            algorithm_choice = future_b.result()
+        # Run Parser first (Stream A)
+        print("[Orchestrator] Running Parser (Stream A)...")
+        graph_structure = self._run_stream_a(graph_ctx)
+        print("[Orchestrator] Parser complete, now running Chooser (Stream B)...")
+        
+        # Run Chooser after Parser completes (Stream B)
+        algorithm_choice = self._run_stream_b(task_ctx, graph_structure)
         
         return graph_structure, algorithm_choice
     
@@ -236,16 +247,17 @@ class AgentOrchestrator:
         graph_structure = self.parser.parse(graph_ctx)
         return graph_structure
     
-    def _run_stream_b(self, task_ctx: str) -> Any:
+    def _run_stream_b(self, task_ctx: str, graph_structure: Any = None) -> Any:
         """
         Stream B: Logic Pipeline (Router → Algorithm Selection).
         
         Args:
             task_ctx: Task context
+            graph_structure: Optional graph structure from Parser
             
         Returns:
             AlgorithmChoice
         """
-        # Choose algorithm based on task
-        algorithm_choice = self.chooser.choose_algorithm(task_ctx)
+        # Choose algorithm based on task (now with graph structure available)
+        algorithm_choice = self.chooser.choose_algorithm(task_ctx, graph_structure=graph_structure)
         return algorithm_choice
