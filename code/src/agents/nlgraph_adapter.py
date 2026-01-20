@@ -15,6 +15,7 @@ class NLGraphResult(BaseModel):
     success: bool
     natural_language_response: str
     raw_result: Optional[Any] = None
+    graph_structure: Optional[Any] = None
     algorithm_used: Optional[str] = None
     error_message: Optional[str] = None
     matches_expected: Optional[bool] = None
@@ -78,6 +79,7 @@ class NLGraphAdapter:
                 success=result.success,
                 natural_language_response=result.natural_language_response,
                 raw_result=result.raw_result,
+                graph_structure=result.graph_structure,
                 algorithm_used=result.algorithm_used,
                 error_message=result.error_message,
                 matches_expected=matches_expected,
@@ -176,58 +178,74 @@ class NLGraphAdapter:
         agent_norm = self._normalize_answer(agent_response)
         expected_norm = self._normalize_answer(expected_answer)
         
-        # For connectivity tasks
-        if "yes" in expected_norm or "no" in expected_norm:
-            return ("yes" in agent_norm) == ("yes" in expected_norm)
-        
-        # For path/cycle tasks - extract path if present
+        # 1. First check for path/cycle - most specific
         agent_path = self._extract_path(agent_norm)
         expected_path = self._extract_path(expected_norm)
         
         if agent_path and expected_path:
             return agent_path == expected_path
-        
-        # For numeric answers (flow, matching, etc.)
+            
+        # 2. Check for numeric answers (flow, matching, etc.)
         agent_num = self._extract_number(agent_norm)
         expected_num = self._extract_number(expected_norm)
         
         if agent_num is not None and expected_num is not None:
             return abs(agent_num - expected_num) < 0.01
+
+        # 3. For connectivity tasks expecting yes/no
+        # Use word boundaries or more specific checks if possible, but for now
+        # we process this after paths/numbers to avoid "node" triggering "no"
+        if "yes" in expected_norm or "no" in expected_norm:
+            # If agent provided path details, that implies "yes" for connectivity
+            if "path" in agent_norm and ("[" in agent_norm or "->" in agent_norm):
+                return "yes" in expected_norm
+            # Check for explicit yes/no
+            return ("yes" in agent_norm) == ("yes" in expected_norm)
         
         # Fallback: simple substring match
         return expected_norm in agent_norm or agent_norm in expected_norm
     
     def _normalize_answer(self, answer: str) -> str:
         """Normalize answer for comparison"""
-        return answer.lower().strip().replace(",", "").replace(".", "")
+        # Preserve dots for float comparison, and commas for list structure
+        return answer.lower().strip()
     
     def _extract_path(self, text: str) -> Optional[list]:
         """Extract path from answer text"""
-        # Look for patterns like "1,2,3" or "1 -> 2 -> 3" or "1-2-3"
+        # Look for patterns like "1,2,3" or "1 -> 2 -> 3" or "1-2-3" or "['1', '2']"
         patterns = [
-            r"path[:\s]+([0-9,\s\-\>]+)",
-            r"is[:\s]+([0-9,\s\-\>]+)",
-            r"([0-9]+(?:[,\-\>]+[0-9]+)+)"
+            r"path[:\s]+([0-9]+(?:[\s,\-\>]+[0-9]+)+)",
+            r"is[:\s]+([0-9]+(?:[\s,\-\>]+[0-9]+)+)",
+            r"\[(['\"]?\w+['\"]?(?:,\s*['\"]?\w+['\"]?)*)\]",  # Python list format
+            r"([0-9]+(?:[\s,\-\>]+[0-9]+)+)"  # Generic sequence with separators (allow spaces)
         ]
         
         for pattern in patterns:
             match = re.search(pattern, text)
             if match:
                 path_str = match.group(1)
-                # Extract numbers
+                # Extract numbers (works for strings '1' as long as they are digits)
+                # If nodes are not digits, we might need a more robust extraction, 
+                # but benchmark nodes are usually numbered.
                 numbers = re.findall(r'\d+', path_str)
+                # Filter out single number matches that might be false positives from generic regex
+                # if there is only 1 number, it's a path of length 0 (trivial) or 1 node.
+                # But the regex ([0-9]+(?:[\s,\-\>]+[0-9]+)+) enforces at least two numbers.
                 return [int(n) for n in numbers]
         
         return None
     
     def _extract_number(self, text: str) -> Optional[float]:
         """Extract numeric value from answer text"""
-        # Look for patterns like "weight of 11" or "flow is 25"
+        # Look for patterns like "weight of 11" or "flow is 25" or "-> 2.0"
         patterns = [
             r"weight[:\s]+of[:\s]+([0-9.]+)",
+            r"length[:\s]+(?:of|is)[:\s]+([0-9.]+)",
+            r"distance[:\s]+(?:of|is)[:\s]+([0-9.]+)",
             r"flow[:\s]+(?:is|of)[:\s]+([0-9.]+)",
             r"matching[:\s]+(?:is|of)[:\s]+([0-9.]+)",
-            r"([0-9.]+)"
+            r"->>\s*([0-9.]+)",  # Arrow followed by number
+            r"([0-9.]+)"  # Any number as fallback
         ]
         
         for pattern in patterns:
@@ -270,6 +288,18 @@ class NLGraphAdapter:
             
             result = self.process_nlgraph_question(question, expected)
             
+            # Extract graph stats if available
+            graph_stats = {'nodes': 0, 'edges': 0}
+            if result.graph_structure:
+                gs = result.graph_structure
+                # Handle both object and dict formats
+                if hasattr(gs, 'nodes'):
+                    graph_stats['nodes'] = len(gs.nodes)
+                    graph_stats['edges'] = len(gs.edges)
+                elif isinstance(gs, dict):
+                    graph_stats['nodes'] = len(gs.get('nodes', []))
+                    graph_stats['edges'] = len(gs.get('edges', []))
+
             results.append({
                 'id': sample.get('id', i),
                 'task': sample.get('task', 'unknown'),
@@ -278,7 +308,8 @@ class NLGraphAdapter:
                 'agent_response': result.natural_language_response,
                 'expected_answer': expected,
                 'algorithm_used': result.algorithm_used,
-                'error': result.error_message
+                'error': result.error_message,
+                'graph_stats': graph_stats
             })
             
             total += 1

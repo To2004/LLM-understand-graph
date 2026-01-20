@@ -40,6 +40,12 @@ class FlowAlgorithms:
             Uses the Edmonds-Karp algorithm (BFS-based Ford-Fulkerson)
         """
         try:
+            # Check if capacity attribute exists, fallback to weight if needed
+            # Common issue: parsed graphs might put capacity in 'weight' attribute
+            test_edge = next(iter(graph.edges(data=True)), None)
+            if test_edge and capacity not in test_edge[2] and 'weight' in test_edge[2]:
+                capacity = 'weight'
+
             # Compute maximum flow using Edmonds-Karp algorithm
             flow_value, flow_dict = nx.maximum_flow(
                 graph, 
@@ -78,6 +84,11 @@ class FlowAlgorithms:
             The minimum cut partitions nodes into two sets, verifying max-flow min-cut theorem
         """
         try:
+            # Check if capacity attribute exists, fallback to weight if needed
+            test_edge = next(iter(graph.edges(data=True)), None)
+            if test_edge and capacity not in test_edge[2] and 'weight' in test_edge[2]:
+                capacity = 'weight'
+                
             # Compute minimum cut
             cut_value, partition = nx.minimum_cut(
                 graph,
@@ -124,6 +135,24 @@ class FlowAlgorithms:
                 if node in graph:
                     graph.nodes[node]['demand'] = dem
             
+            # Check if capacity/weight attribute exists, fallback logic akin to max flow
+            test_edge = next(iter(graph.edges(data=True)), None)
+            if test_edge:
+                if capacity not in test_edge[2] and 'weight' in test_edge[2]:
+                    # If capacity is missing but weight is present, 
+                    # we must be careful. Min cost flow needs BOTH capacity and cost (weight).
+                    # If we only have one attribute, we typically can't do min cost flow easily 
+                    # unless we assume unit cost or infinite capacity.
+                    # As a heuristic for this generic agent: 
+                    # if 'weight' is present but 'capacity' is not, assume 'weight' is capacity 
+                    # and cost is 1 (or vice versa? tricky).
+                    # For now, let's assume 'weight' in graph map corresponds to 'capacity' arg
+                    # if we are doing standard flow, but min_cost_flow is more complex.
+                    # Let's simple check logic: if we don't have capacity, try to use weight as capacity
+                    # and default cost (weight param) to 1 if missing? 
+                    # NetworkX defaults weight to 0 and capacity to infinite if missing.
+                    pass 
+
             # Compute minimum cost flow
             flow_dict = nx.min_cost_flow(
                 graph,

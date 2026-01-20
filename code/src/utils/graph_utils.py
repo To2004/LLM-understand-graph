@@ -55,8 +55,34 @@ class GraphUtils:
                 if len(edge) == 2:
                     source, target = edge[0], edge[1]
                     # Try to find weight for this edge
+                    # Try to find weight for this edge
                     weight_key = f"{source}-{target}"
-                    weight = weights.get(weight_key, 1.0)
+                    
+                    if weight_key in weights:
+                        weight = weights[weight_key]
+                    elif (source, target) in weights:
+                        weight = weights[(source, target)]
+                    else:
+                        # Try reverse key for undirected graphs or if parser flipped them
+                        weight_key_rev = f"{target}-{source}"
+                        if weight_key_rev in weights:
+                            weight = weights[weight_key_rev]
+                        elif (target, source) in weights:
+                            weight = weights[(target, source)]
+                        else:
+                            # Warning if weighted but weight not found
+                            if weighted:
+                                print(f"Warning: Weight not found for edge {source}-{target}, using default 1.0")
+                                # DEBUG: Print details for the first few failures to avoid spam
+                                if not hasattr(GraphUtils, '_debug_count'):
+                                    GraphUtils._debug_count = 0
+                                if GraphUtils._debug_count < 3:
+                                    print(f"DEBUG: Lookup Key: '{weight_key}'")
+                                    print(f"DEBUG: Source: '{source}' (type: {type(source)}), Target: '{target}' (type: {type(target)})")
+                                    print(f"DEBUG: Available keys (sample): {list(weights.keys())[:5]}")
+                                    GraphUtils._debug_count += 1
+                            weight = 1.0
+                            
                     G.add_edge(source, target, weight=weight)
         else:
             # Add edges without weights

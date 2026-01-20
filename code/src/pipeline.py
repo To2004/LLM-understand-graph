@@ -11,7 +11,7 @@ This module provides the complete 4-phase pipeline:
 from typing import Optional, Any, Dict
 from pydantic import BaseModel
 
-from .agents import AgentParser, AgentChooser, AgentSynthesizer, AgentVerifier
+from .agents import AgentParser, AgentChooser, AgentSynthesizer
 from .algorithms import AlgorithmExecutor
 from .agents import AgentOrchestrator, PromptValidator, PromptDecomposer
 from .llms.base import BaseLLMClient
@@ -100,12 +100,11 @@ class GraphReasoningPipeline:
         
         self.executor = AlgorithmExecutor()
         
+        # Verifier is not implemented yet
         if enable_verification:
-            self.verifier = AgentVerifier(llm_client)
             if self.verbose:
-                print("Verification enabled")
-        else:
-            self.verifier = None
+                print("Warning: Verification not yet implemented")
+        self.verifier = None
         
         # Initialize orchestrator
         self.orchestrator = AgentOrchestrator(

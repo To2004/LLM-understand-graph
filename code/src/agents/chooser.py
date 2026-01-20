@@ -67,6 +67,14 @@ class AgentChooser:
         # Classify task type and extract base parameters
         task_type, base_parameters, confidence = self._classify_task_type(task_query)
         
+        # Validate and repair parameters if graph structure is available
+        if graph_structure:
+            base_parameters = self._validate_and_repair_parameters(
+                task_query, 
+                base_parameters, 
+                graph_structure
+            )
+        
         # Select specific algorithm based on task and graph properties
         algorithm_name, reasoning = self._select_algorithm(
             task_type,
@@ -81,6 +89,73 @@ class AgentChooser:
             confidence=confidence,
             reasoning=reasoning
         )
+
+    def _validate_and_repair_parameters(
+        self,
+        query: str,
+        parameters: Dict[str, Any],
+        graph_structure: Any
+    ) -> Dict[str, Any]:
+        """
+        Validate parameters against graph structure and repair if needed.
+        
+        Args:
+            query: Original task query
+            parameters: Extracted parameters to validate
+            graph_structure: Graph structure with node list
+            
+        Returns:
+            Validated (and potentially repaired) parameters
+        """
+        if not graph_structure:
+            return parameters
+            
+        # Get node list safely
+        nodes = []
+        if hasattr(graph_structure, 'nodes'):
+            nodes = graph_structure.nodes
+        elif isinstance(graph_structure, dict) and 'nodes' in graph_structure:
+            nodes = graph_structure['nodes']
+        else:
+            return parameters # Cannot validate
+            
+        nodes_set = set(nodes)
+        needs_repair = False
+        
+        # Check source
+        if 'source' in parameters:
+            if parameters['source'] not in nodes_set:
+                print(f"[Chooser] Invalid source '{parameters['source']}' not in graph. Repairing...")
+                needs_repair = True
+                
+        # Check target
+        if 'target' in parameters:
+            if parameters['target'] not in nodes_set:
+                print(f"[Chooser] Invalid target '{parameters['target']}' not in graph. Repairing...")
+                needs_repair = True
+
+        # Check sink
+        if 'sink' in parameters:
+            if parameters['sink'] not in nodes_set:
+                print(f"[Chooser] Invalid sink '{parameters['sink']}' not in graph. Repairing...")
+                needs_repair = True
+                
+        if needs_repair:
+            # Re-extract with knowledge of valid nodes
+            print(f"[Chooser] Attempting to repair parameters using valid nodes: {nodes}")
+            try:
+                new_params = self._extract_parameters(query, list(nodes) if isinstance(nodes, list) else list(nodes_set))
+                # Only keep found parameters that are actually valid now
+                if 'found_parameters' in new_params:
+                    del new_params['found_parameters']
+                    
+                print(f"[Chooser] Repaired parameters: {new_params}")
+                # Update parameters with new values
+                parameters.update(new_params)
+            except Exception as e:
+                print(f"[Chooser] Failed to repair parameters: {e}")
+                
+        return parameters
     
     def _classify_task_type(self, query: str) -> tuple:
         """

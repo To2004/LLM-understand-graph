@@ -26,7 +26,7 @@ class AgentOrchestrator:
     Main orchestrator that coordinates the entire 4-phase pipeline.
     
     Phase 1: Validation & Decomposition
-    Phase 2: Sequential Processing (Parser → Chooser)
+    Phase 2: Sequential Processing (Parser -> Chooser)
     Phase 3: Execution
     Phase 4: Synthesis
     """
@@ -82,14 +82,14 @@ class AgentOrchestrator:
             validation_result = self._validate_prompt(user_input)
             
             if not validation_result.is_valid:
-                print(f"[Orchestrator] ❌ Validation failed: {validation_result.rejection_reason}")
+                print(f"[Orchestrator] [FAIL] Validation failed: {validation_result.rejection_reason}")
                 return PipelineResult(
                     success=False,
                     natural_language_response=f"Invalid query: {validation_result.rejection_reason}",
                     error_message=validation_result.rejection_reason
                 )
             
-            print(f"[Orchestrator] ✅ Validation passed (confidence: {validation_result.confidence})")
+            print(f"[Orchestrator] [OK] Validation passed (confidence: {validation_result.confidence})")
             
             # Decompose prompt
             decomposition_result = self._decompose_prompt(user_input)
@@ -98,7 +98,7 @@ class AgentOrchestrator:
             print(f"[Orchestrator] Graph context: {graph_ctx[:80]}...")
             print(f"[Orchestrator] Task context: {task_ctx[:80]}...")
             
-            # Phase 2: Sequential Processing (Parser → Chooser)
+            # Phase 2: Sequential Processing (Parser -> Chooser)
             print("\n[Orchestrator] ========== PHASE 2: SEQUENTIAL PROCESSING ==========")
             graph_structure, algorithm_choice = self._execute_parallel_streams(
                 graph_ctx, task_ctx
@@ -156,7 +156,7 @@ class AgentOrchestrator:
                 algorithm_name=algorithm_choice.algorithm_name,
                 graph_structure=graph_structure
             )
-            print(f"[Orchestrator] Synthesized response: {synthesis_result.natural_language_response}")
+            print(f"[Orchestrator] Synthesized response: {synthesis_result.natural_language_response.encode('ascii', 'replace').decode('ascii')}")
             
             print("\n[Orchestrator] ========== PIPELINE COMPLETE ==========")
             return PipelineResult(
@@ -235,7 +235,7 @@ class AgentOrchestrator:
     
     def _run_stream_a(self, graph_ctx: str) -> Any:
         """
-        Stream A: Data Pipeline (Parser → Graph Builder).
+        Stream A: Data Pipeline (Parser -> Graph Builder).
         
         Args:
             graph_ctx: Graph context
@@ -249,7 +249,7 @@ class AgentOrchestrator:
     
     def _run_stream_b(self, task_ctx: str, graph_structure: Any = None) -> Any:
         """
-        Stream B: Logic Pipeline (Router → Algorithm Selection).
+        Stream B: Logic Pipeline (Router -> Algorithm Selection).
         
         Args:
             task_ctx: Task context
@@ -261,3 +261,4 @@ class AgentOrchestrator:
         # Choose algorithm based on task (now with graph structure available)
         algorithm_choice = self.chooser.choose_algorithm(task_ctx, graph_structure=graph_structure)
         return algorithm_choice
+

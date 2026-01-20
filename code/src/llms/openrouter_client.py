@@ -124,6 +124,26 @@ class OpenRouterClient(BaseLLMClient):
                 # Extract response
                 result = response.json()
                 
+                # Check if response has expected structure
+                if 'choices' not in result:
+                    error_detail = result.get('error', {})
+                    if error_detail:
+                        error_msg = error_detail.get('message', str(error_detail))
+                        error_code = error_detail.get('code', 'unknown')
+                        error_metadata = error_detail.get('metadata', {})
+                        
+                        # Log detailed error information
+                        print(f"\n[OpenRouter API Error]")
+                        print(f"  Model: {self.model_name}")
+                        print(f"  Error Code: {error_code}")
+                        print(f"  Error Message: {error_msg}")
+                        if error_metadata:
+                            print(f"  Metadata: {json.dumps(error_metadata, indent=4)}")
+                        print(f"  Full Response: {json.dumps(result, indent=2)}\n")
+                        
+                        raise RuntimeError(f"OpenRouter API error [{error_code}]: {error_msg}")
+                    raise RuntimeError(f"Unexpected API response format. Response: {json.dumps(result, indent=2)[:500]}")
+                
                 content = result['choices'][0]['message']['content']
                 finish_reason = result['choices'][0]['finish_reason']
                 

@@ -8,9 +8,9 @@ __version__ = "0.1.0"
 from .pipeline import GraphReasoningPipeline, PipelineResult, quick_query
 
 # Core components
-from .agents import AgentParser, AgentChooser, AgentSynthesizer, AgentVerifier
+from .agents import AgentParser, AgentChooser, AgentSynthesizer
 from .algorithms import AlgorithmExecutor
-from .agents import AgentOrchestrator, PromptValidator, PromptDecomposer
+from .agents import AgentOrchestrator, PromptValidator, PromptDecomposer, NLGraphAdapter
 
 __all__ = [
     # Main pipeline
@@ -21,12 +21,12 @@ __all__ = [
     "AgentParser",
     "AgentChooser",
     "AgentSynthesizer",
-    "AgentVerifier",
     # Algorithms
     "AlgorithmExecutor",
     # Orchestrator
     "AgentOrchestrator",
     "PromptValidator",
     "PromptDecomposer",
+    "NLGraphAdapter",
 ]
 
